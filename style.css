@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;700&family=Fira+Sans:wght@400;500;700&display=swap');
+
+* {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+      
+    body {
+        font-family: 'Fira Sans', sans-serif;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    body > *:not(header) {
+        max-width: 50%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+       
+    header {
+        background-color: black;
+        padding: 8px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: 'Roboto Slab', serif;
+   }
+       
+    header img {
+        height: 60px;
+        max-height: 90vh;
+    }
+        
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+        
+    .home-link {
+        color: white;
+        text-decoration: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+    }
+        
+    .home-link:hover {
+        background-color: #333;
+    }
+        
+    nav {
+        display: flex;
+        gap: 20px;
+   }
+        
+    nav a {
+        color: white;
+        text-decoration: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+   }
+        
+    nav a:hover {
+        background-color: #333;
+   }
+        
+   .header-image {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 50vh;
+        object-fit: cover;
+   }
+        
+    h1 {
+        text-align: center;
+        padding: 30px 20px;
+        font-size: 36px;
+        font-family: 'Roboto Slab', serif;
+   }
+    
+    h2, h3 {
+        font-family: 'Roboto Slab', serif;
+        margin-top: 30px;
+        margin-bottom: 15px;
+    }
+    
+    h2 {
+        font-size: 28px;
+    }
+    
+    h3 {
+        font-size: 22px;
+    }
+    
+    #map-container {
+        margin: 20px 0;
+        display: flex;
+        justify-content: center;
+    }
+    
+    #map-container svg {
+        max-width: 100%;
+        height: auto;
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    
+    table th {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #333;
+        font-weight: bold;
+        background-color: #f5f5f5;
+        font-family: 'Roboto Slab', serif;
+    }
+    
+    table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    table tr:hover {
+        background-color: #f9f9f9;
+    }
+    
+    #selected-state-info {
+        margin-top: 40px;
+    }

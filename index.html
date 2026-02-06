@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Do you speak american ?</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.js"></script>
+    <script src="https://d3js.org/topojson.v3.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="logo-white_unige.png" alt="Logo">
+            <a href="index.html" class="home-link">Home</a>
+        </div>
+        <nav>
+            <a href="methodology.html">Methodology</a>
+            <a href="team.html">Team</a>
+        </nav>
+    </header>
+    
+    <img src="header_image.jpg" alt="Header Image" class="header-image">
+    
+    <h1>Do you speak american ?</h1>
+    <p>The United States of America are often considered to be a country
+        where everyone speaks English.
+        However, the reality is way more surprising ! 
+        Let's bring out some visualisations that will help us better understand the reality of "speaking american".
+    </p>
+    
+    <h2>Languages by State</h2>
+    <p>Click on a state to see what languages are spoken there.</p>
+    
+    <div id="map-container"></div>
+    
+    <div id="selected-state-info">
+        <h3>Languages spoken in <span id="selected-state">Select a state</span></h3>
+        <div id="languages-container"></div>
+    </div>
+    
+    <script src="map-visualization.js"></script>
+</body>
+</html>
