@@ -386,6 +386,212 @@ Promise.all([
             .attr('font-family', 'Fira Sans, sans-serif');
     })();
 
+    // --- Bar chart: top 15 languages by total speakers (with exclude options) ---
+    function renderBarChart(excludeSet = new Set()) {
+        try {
+            // compute totals nationwide
+            const totals = new Map();
+            languageData.forEach(d => {
+                const lang = d.Language || 'Unknown';
+                const v = d.Speakers || 0;
+                totals.set(lang, (totals.get(lang) || 0) + v);
+            });
+
+            const allItems = Array.from(totals.entries())
+                .map(([lang, total]) => ({ lang, total }))
+                .filter(d => d.total > 0)
+                .sort((a,b) => b.total - a.total);
+
+            // Filter out excluded languages and take top 15 of the remaining
+            const items = allItems
+                .filter(d => !excludeSet.has(d.lang))
+                .slice(0, 15);
+
+            const w = 920, h = 480, margin = {top: 20, right: 20, bottom: 50, left: 220};
+            const innerW = w - margin.left - margin.right;
+            const innerH = h - margin.top - margin.bottom;
+
+            d3.select('#bar-container').selectAll('svg').remove();
+            const svgBar = d3.select('#bar-container')
+                .append('svg')
+                .attr('viewBox', `0 0 ${w} ${h}`)
+                .attr('preserveAspectRatio', 'xMidYMid meet')
+                .attr('width', '100%')
+                .attr('height', '100%');
+
+            const g = svgBar.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear().domain([0, d3.max(items, d => d.total) || 1]).range([0, innerW]).nice();
+            const y = d3.scaleBand().domain(items.map(d => d.lang)).range([0, innerH]).padding(0.12);
+
+            const xAxis = d3.axisBottom(x).ticks(6).tickFormat(d3.format('~s'));
+            const yAxis = d3.axisLeft(y).tickSize(0);
+
+            g.append('g').call(yAxis).selectAll('text').attr('font-size', 12).attr('font-family', 'Fira Sans, sans-serif');
+
+            g.append('g').attr('transform', `translate(0,${innerH})`).call(xAxis)
+                .append('text')
+                .attr('x', innerW/2)
+                .attr('y', 40)
+                .attr('fill', '#000')
+                .attr('text-anchor', 'middle')
+                .text('Total speakers');
+
+            const bars = g.selectAll('.bar').data(items).enter().append('g').attr('class','bar');
+
+            bars.append('rect')
+                .attr('x', 0)
+                .attr('y', d => y(d.lang))
+                .attr('height', d => y.bandwidth())
+                .attr('width', d => x(d.total))
+                .attr('fill', d => color(d.lang))
+                .on('mouseover', function(event, d) {
+                    const tooltip = d3.select('body').selectAll('.dot-tooltip').data([0]).join(
+                        enter => enter.append('div').attr('class','dot-tooltip'),
+                        update => update
+                    );
+                    tooltip.style('display','block').html(`<strong>${d.lang}</strong><br/>Speakers: ${d.total.toLocaleString()}`);
+                })
+                .on('mousemove', function(event) { d3.select('.dot-tooltip').style('left', (event.pageX+10)+'px').style('top', (event.pageY+10)+'px'); })
+                .on('mouseout', function() { d3.select('.dot-tooltip').style('display','none'); });
+
+            bars.append('text')
+                .attr('class','bar-label')
+                .attr('x', d => x(d.total) + 6)
+                .attr('y', d => y(d.lang) + y.bandwidth()/2 + 4)
+                .text(d => d.total.toLocaleString());
+
+        } catch (err) {
+            console.error('Error rendering bar chart:', err);
+        }
+    }
+
+    // Initial bar chart render
+    renderBarChart(new Set());
+
+    // Attach checkbox handlers to rerender bar chart
+    d3.select('#bar-english-check').on('change', function() {
+        const exclude = new Set();
+        if (!d3.select('#bar-english-check').property('checked')) exclude.add('English');
+        if (!d3.select('#bar-spanish-check').property('checked')) exclude.add('Spanish');
+        renderBarChart(exclude);
+    });
+
+    d3.select('#bar-spanish-check').on('change', function() {
+        const exclude = new Set();
+        if (!d3.select('#bar-english-check').property('checked')) exclude.add('English');
+        if (!d3.select('#bar-spanish-check').property('checked')) exclude.add('Spanish');
+        renderBarChart(exclude);
+    });
+
+    // --- Dot chart: states-count vs total speakers ---
+    (function renderDotChart() {
+        try {
+            console.log('Rendering dot chart...');
+        // Compute totals per language (nationwide)
+        const totals = new Map();
+        // total speakers per language
+        languageData.forEach(d => {
+            const lang = d.Language || 'Unknown';
+            const v = d.Speakers || 0;
+            totals.set(lang, (totals.get(lang) || 0) + v);
+        });
+
+        // count number of states where each language appears
+        const statesCount = new Map();
+        languageByState.forEach((arr, state) => {
+            const langs = new Set(arr.map(d => d.Language));
+            langs.forEach(l => statesCount.set(l, (statesCount.get(l) || 0) + 1));
+        });
+
+        // Exclude obvious outliers for the dotted chart
+        const exclude = new Set(['English', 'Spanish']);
+
+        const data = Array.from(totals.keys()).map(lang => ({
+            lang,
+            total: totals.get(lang) || 0,
+            states: statesCount.get(lang) || 0
+        })).filter(d => d.total > 0 && d.states > 0 && !exclude.has(d.lang));
+
+        console.log('Dot chart data points:', data.length);
+
+        // Chart size
+        const w = 920, h = 360, margin = {top: 20, right: 20, bottom: 50, left: 70};
+        const innerW = w - margin.left - margin.right;
+        const innerH = h - margin.top - margin.bottom;
+
+        // scales
+        const xMax = d3.max(data, d => d.states) || 1;
+        const yMax = d3.max(data, d => d.total) || 1;
+
+        const x = d3.scaleLinear().domain([0, xMax]).range([0, innerW]).nice();
+        const y = d3.scaleLinear().domain([0, yMax]).range([innerH, 0]).nice();
+
+        // svg
+        d3.select('#dot-container').selectAll('svg').remove();
+        const svgDot = d3.select('#dot-container')
+            .append('svg')
+            .attr('viewBox', `0 0 ${w} ${h}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet')
+            .attr('width', '100%')
+            .attr('height', '100%');
+
+        const g = svgDot.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+        // draw background rect to show bounds and axes
+        g.append('rect').attr('x', 0).attr('y', 0).attr('width', innerW).attr('height', innerH).attr('fill', 'none').attr('stroke', '#eee');
+
+        // axes
+        const xAxis = d3.axisBottom(x).ticks(Math.min(xMax, 10)).tickFormat(d3.format('d'));
+        const yAxis = d3.axisLeft(y).ticks(6).tickFormat(d3.format('~s'));
+
+        g.append('g').attr('transform', `translate(0,${innerH})`).call(xAxis)
+            .append('text')
+            .attr('x', innerW/2)
+            .attr('y', 40)
+            .attr('fill', '#000')
+            .attr('text-anchor', 'middle')
+            .text('Number of states');
+
+        g.append('g').call(yAxis)
+            .append('text')
+            .attr('transform', 'rotate(-90)')
+            .attr('x', -innerH/2)
+            .attr('y', -50)
+            .attr('fill', '#000')
+            .attr('text-anchor', 'middle')
+            .text('Total speakers');
+
+        // tooltip element (absolute positioned)
+        let tooltip = d3.select('body').selectAll('.dot-tooltip').data([0]).join(
+            enter => enter.append('div').attr('class', 'dot-tooltip').style('display','none'),
+            update => update
+        );
+
+        // points
+        g.selectAll('circle.point')
+            .data(data)
+            .enter().append('circle')
+            .classed('point', true)
+            .attr('cx', d => x(d.states))
+            .attr('cy', d => y(d.total))
+            .attr('r', 4)
+            .attr('fill', d => color(d.lang))
+            .attr('opacity', 0.9)
+            .on('mouseover', function(event, d) {
+                tooltip.style('display','block').html(`<strong>${d.lang}</strong><br/>States: ${d.states}<br/>Speakers: ${d.total.toLocaleString()}`);
+            })
+            .on('mousemove', function(event) {
+                tooltip.style('left', (event.pageX + 10) + 'px').style('top', (event.pageY + 10) + 'px');
+            })
+            .on('mouseout', function() { tooltip.style('display','none'); });
+
+        } catch (err) {
+            console.error('Error rendering dot chart:', err);
+        }
+
+    })();
+
     function getStateName(d) {
         // Prefer any name property present in the GeoJSON feature
         if (d && d.properties) {
