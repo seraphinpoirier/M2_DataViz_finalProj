@@ -79,7 +79,27 @@
     <div id="bar-section">
         <div id="bar-container"></div>
     </div>
+
+    <h2>English Proficiency by State</h2>
+    <p>Proportion of people who speak English less than "Very Well" compared to the total state population.</p>
+    <div id="english-proficiency-map-container"></div>
+
+    <h2>Speakers of English less than "Very Well"</h2>
+    <p>Number of people who speak English less than "Very Well" by state, ordered by volume. Includes margin of error.</p>
+    <div class="english-histogram-controls">
+        <label><input type="checkbox" id="histogram-nationwide-check" checked /> Include Nationwide Total</label>
+    </div>
+    <div id="english-histogram-container"></div>
     
     <script src="map-visualization.js"></script>
 </body>
 </html>
+    
+    <!-- Language search & per-language map -->
+    <h2>Search a language</h2>
+    <p>Type a language name and select it to view its distribution across states.</p>
+    <div id="language-search-section">
+        <input id="language-search" list="language-list" placeholder="Type a language (e.g. Spanish)" />
+        <datalist id="language-list"></datalist>
+    </div>
+    <div id="language-map-container"></div>

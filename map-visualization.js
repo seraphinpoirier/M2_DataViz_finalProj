@@ -291,6 +291,18 @@ Promise.all([
         .domain([minCount, maxCount])
         .range(["#deebf7", "#08306b"]);
 
+    // Create tooltip for main map (state name)
+    const mapTooltip = d3.select("body").append("div")
+        .style("position", "absolute")
+        .style("padding", "6px 10px")
+        .style("background-color", "rgba(0,0,0,0.8)")
+        .style("color", "#fff")
+        .style("border-radius", "4px")
+        .style("pointer-events", "none")
+        .style("font-size", "12px")
+        .style("font-family", "'Fira Sans', sans-serif")
+        .style("opacity", 0);
+
     // Draw states with color based on language counts
     svg.selectAll("path")
         .data(states)
@@ -305,13 +317,21 @@ Promise.all([
         .attr("stroke-width", 0.75)
         .style("cursor", "pointer")
         .on("mouseenter", function(event, d) {
+            const stateName = canonicalStateName(getStateName(d));
+            mapTooltip.style("opacity", 1).text(stateName);
             d3.select(this)
                 .attr("stroke", "#333")
                 .attr("stroke-width", 2);
         })
+        .on("mousemove", function(event) {
+            mapTooltip
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        })
         .on("mouseleave", function(event, d) {
             const stateName = canonicalStateName(getStateName(d));
             const isSelected = d3.select("#selected-state").text() === stateName;
+            mapTooltip.style("opacity", 0);
             d3.select(this)
                 .attr("stroke", "#999")
                 .attr("stroke-width", isSelected ? 2 : 0.75);
@@ -675,4 +695,536 @@ Promise.all([
             .style("padding", "8px")
             .style("border-bottom", "1px solid #ddd");
     }
+
+    // ===========================
+    // English Proficiency Map
+    // ===========================
+    const epWidth = 960;
+    const epHeight = 600;
+
+    const epSvg = d3.select("#english-proficiency-map-container")
+        .append("svg")
+        .attr("width", epWidth)
+        .attr("height", epHeight)
+        .style("border", "1px solid #ccc");
+
+    const epProjection = d3.geoAlbersUsa()
+        .translate([epWidth / 2, epHeight / 2])
+        .scale(850);
+
+    const epPath = d3.geoPath().projection(epProjection);
+
+    // Calculate "Speak English less than Very Well" by state
+    const englishLessThanVeryWellByState = new Map();
+    languageData.forEach(d => {
+        const stateKey = canonicalStateName(d.State);
+        let count = d["Speak English less than \"Very Well\""] || d['Speak English less than "Very Well"'];
+        count = parseSpeakers(count);
+        if (count !== null) {
+            const current = englishLessThanVeryWellByState.get(stateKey) || 0;
+            englishLessThanVeryWellByState.set(stateKey, current + count);
+        }
+    });
+
+    // Calculate proportions: (less than very well / total population) * 100
+    const englishProficiencyProportions = new Map();
+    englishLessThanVeryWellByState.forEach((count, state) => {
+        const pop = populationByState.get(state) || 1;
+        const proportion = (count / pop) * 100;
+        englishProficiencyProportions.set(state, proportion);
+    });
+
+    // Create red color scale: light red (#fee5d9) to dark red (#a50f15)
+    const proportions = Array.from(englishProficiencyProportions.values());
+    const epMinProp = Math.min(...proportions);
+    const epMaxProp = Math.max(...proportions);
+
+    const epColorScale = d3.scaleLinear()
+        .domain([epMinProp, epMaxProp])
+        .range(["#fee5d9", "#a50f15"]);
+
+    // Create tooltip for English Proficiency map
+    const epTooltip = d3.select("body").append("div")
+        .style("position", "absolute")
+        .style("padding", "8px 12px")
+        .style("background-color", "#333")
+        .style("color", "#fff")
+        .style("border-radius", "4px")
+        .style("pointer-events", "none")
+        .style("font-size", "12px")
+        .style("opacity", 0);
+
+    // Draw states on the English Proficiency map
+    epSvg.selectAll("path")
+        .data(states)
+        .enter()
+        .append("path")
+        .attr("d", epPath)
+        .attr("fill", d => {
+            const stateName = canonicalStateName(getStateName(d));
+            const proportion = englishProficiencyProportions.get(stateName) || 0;
+            return proportion > 0 ? epColorScale(proportion) : "#f0f0f0";
+        })
+        .attr("stroke", "#999")
+        .attr("stroke-width", 0.75)
+        .on("mouseenter", function(event, d) {
+            const stateName = canonicalStateName(getStateName(d));
+            const proportion = englishProficiencyProportions.get(stateName) || 0;
+            epTooltip
+                .style("opacity", 1)
+                .text(`${stateName}: ${proportion.toFixed(2)}%`);
+            d3.select(this)
+                .attr("stroke", "#333")
+                .attr("stroke-width", 2);
+        })
+        .on("mousemove", function(event) {
+            epTooltip
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseleave", function() {
+            epTooltip.style("opacity", 0);
+            d3.select(this)
+                .attr("stroke", "#999")
+                .attr("stroke-width", 0.75);
+        });
+
+    // Add legend for English Proficiency map
+    (function addEnglishProficiencyLegend() {
+        const legendWidth = 180;
+        const legendHeight = 12;
+        const legendX = epWidth - legendWidth - 20;
+        const legendY = 520;
+
+        const defs = epSvg.append('defs');
+        const lg = defs.append('linearGradient').attr('id', 'ep-legend-gradient');
+        lg.append('stop').attr('offset', '0%').attr('stop-color', epColorScale(epMinProp));
+        lg.append('stop').attr('offset', '100%').attr('stop-color', epColorScale(epMaxProp));
+
+        // Title
+        epSvg.append('text')
+            .attr('x', legendX)
+            .attr('y', legendY - 15)
+            .attr('font-size', 12)
+            .attr('font-weight', 'bold')
+            .text('English < "Very Well" (%)');
+
+        // Gradient bar
+        epSvg.append('rect')
+            .attr('x', legendX)
+            .attr('y', legendY)
+            .attr('width', legendWidth)
+            .attr('height', legendHeight)
+            .attr('fill', 'url(#ep-legend-gradient)');
+
+        // Legend axis
+        const epLegendScale = d3.scaleLinear()
+            .domain([epMinProp, epMaxProp])
+            .range([0, legendWidth]);
+
+        const epLegendAxis = d3.axisBottom(epLegendScale)
+            .ticks(4)
+            .tickFormat(d3.format('.1f'));
+
+        epSvg.append('g')
+            .attr('transform', `translate(${legendX},${legendY + legendHeight})`)
+            .call(epLegendAxis)
+            .selectAll('text')
+            .attr('font-size', 10);
+    })();
+
+    // ===========================
+    // English Proficiency Histogram
+    // ===========================
+    
+    // Aggregate "Speak English less than Very Well" by state
+    const englishLessVeryWellByState = new Map();
+    const englishErrorByState = new Map();
+    
+    languageData.forEach(d => {
+        const stateKey = canonicalStateName(d.State);
+        const value = parseSpeakers(d["Speak English less than \"Very Well\""] || d['Speak English less than "Very Well"']) || 0;
+        const error = parseSpeakers(d["Margin of Error (Speak English Less than Very Well)"]) || 0;
+        
+        if (value > 0) {
+            const currentVal = englishLessVeryWellByState.get(stateKey) || 0;
+            const currentErr = englishErrorByState.get(stateKey) || [];
+            
+            englishLessVeryWellByState.set(stateKey, currentVal + value);
+            currentErr.push(error);
+            englishErrorByState.set(stateKey, currentErr);
+        }
+    });
+    
+    // Compute RMS (root mean square) of errors per state
+    const englishErrorRMSByState = new Map();
+    englishErrorByState.forEach((errors, state) => {
+        const sumSquares = errors.reduce((s, e) => s + e * e, 0);
+        const rms = Math.sqrt(sumSquares);
+        englishErrorRMSByState.set(state, rms);
+    });
+    
+    // Calculate nationwide totals
+    let nationwideLessVeryWell = 0;
+    let nationwideErrors = [];
+    languageData.forEach(d => {
+        const value = parseSpeakers(d["Speak English less than \"Very Well\""] || d['Speak English less than "Very Well"']) || 0;
+        const error = parseSpeakers(d["Margin of Error (Speak English Less than Very Well)"]) || 0;
+        nationwideLessVeryWell += value;
+        if (error > 0) nationwideErrors.push(error);
+    });
+    const nationwideErrorRMS = Math.sqrt(nationwideErrors.reduce((s, e) => s + e * e, 0));
+    
+    // Build histogram data: states ordered by value
+    let statesData = Array.from(englishLessVeryWellByState.entries()).map(([state, value]) => ({
+        name: state,
+        value: value,
+        error: englishErrorRMSByState.get(state) || 0,
+        isNationwide: false
+    }));
+    
+    // Sort by value descending and keep only top 15
+    statesData.sort((a, b) => b.value - a.value);
+    statesData = statesData.slice(0, 15);
+    
+    // Build histogram data with nationwide
+    let histogramData = statesData;
+    
+    // Add nationwide as first item (will be toggled)
+    histogramData.unshift({
+        name: 'Nationwide',
+        value: nationwideLessVeryWell,
+        error: nationwideErrorRMS,
+        isNationwide: true
+    });
+    
+    // Render histogram
+    function renderEnglishHistogram(includeNationwide = true) {
+        // Filter data based on nationwide checkbox
+        let data = includeNationwide ? histogramData : histogramData.filter(d => !d.isNationwide);
+        
+        // Clear previous
+        d3.select("#english-histogram-container").selectAll("svg").remove();
+        
+        const hisWidth = 920;
+        const hisHeight = Math.max(400, data.length * 25 + 100);
+        
+        const hisSvg = d3.select("#english-histogram-container")
+            .append("svg")
+            .attr("width", hisWidth)
+            .attr("height", hisHeight)
+            .style("border", "1px solid #ccc");
+        
+        const hisMargin = { top: 20, right: 40, bottom: 50, left: 180 };
+        const hisPlotWidth = hisWidth - hisMargin.left - hisMargin.right;
+        const hisPlotHeight = hisHeight - hisMargin.top - hisMargin.bottom;
+        
+        const hisG = hisSvg.append("g")
+            .attr("transform", `translate(${hisMargin.left},${hisMargin.top})`);
+        
+        // Scales
+        const hisXScale = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d.value + d.error) || 1])
+            .range([0, hisPlotWidth]);
+        
+        const hisYScale = d3.scaleBand()
+            .domain(data.map(d => d.name))
+            .range([0, hisPlotHeight])
+            .padding(0.4);
+        
+        // Color: red for nationwide, blue for states
+        const hisColor = d => d.isNationwide ? "#d62728" : "#1f77b4";
+        
+        // Draw bars
+        hisG.selectAll(".bar")
+            .data(data)
+            .join("rect")
+            .attr("class", "bar")
+            .attr("x", 0)
+            .attr("y", d => hisYScale(d.name))
+            .attr("width", d => hisXScale(d.value))
+            .attr("height", hisYScale.bandwidth())
+            .attr("fill", hisColor)
+            .style("opacity", 0.8)
+            .style("cursor", "pointer")
+            .on("mouseover", function(event, d) {
+                d3.select(this).style("opacity", 1);
+            })
+            .on("mouseout", function() {
+                d3.select(this).style("opacity", 0.8);
+            });
+        
+        // Draw error bars
+        hisG.selectAll(".error-bar")
+            .data(data)
+            .join("g")
+            .attr("class", "error-bar")
+            .append("line")
+            .attr("x1", d => hisXScale(d.value))
+            .attr("x2", d => hisXScale(d.value))
+            .attr("y1", d => hisYScale(d.name))
+            .attr("y2", d => hisYScale(d.name) + hisYScale.bandwidth())
+            .attr("stroke", d => hisColor(d))
+            .attr("stroke-width", 1.5);
+        
+        // Error bar caps
+        hisG.selectAll(".error-bar-cap-left")
+            .data(data)
+            .join("line")
+            .attr("class", "error-bar-cap-left")
+            .attr("x1", d => hisXScale(Math.max(0, d.value - d.error)))
+            .attr("x2", d => hisXScale(Math.max(0, d.value - d.error)))
+            .attr("y1", d => hisYScale(d.name) + hisYScale.bandwidth() / 4)
+            .attr("y2", d => hisYScale(d.name) + hisYScale.bandwidth() * 3 / 4)
+            .attr("stroke", d => hisColor(d))
+            .attr("stroke-width", 1.5);
+        
+        hisG.selectAll(".error-bar-cap-right")
+            .data(data)
+            .join("line")
+            .attr("class", "error-bar-cap-right")
+            .attr("x1", d => hisXScale(d.value + d.error))
+            .attr("x2", d => hisXScale(d.value + d.error))
+            .attr("y1", d => hisYScale(d.name) + hisYScale.bandwidth() / 4)
+            .attr("y2", d => hisYScale(d.name) + hisYScale.bandwidth() * 3 / 4)
+            .attr("stroke", d => hisColor(d))
+            .attr("stroke-width", 1.5);
+        
+        // Draw value labels
+        hisG.selectAll(".bar-label")
+            .data(data)
+            .join("text")
+            .attr("class", "bar-label")
+            .attr("x", d => hisXScale(d.value) + 5)
+            .attr("y", d => hisYScale(d.name) + hisYScale.bandwidth() / 2)
+            .attr("dy", "0.35em")
+            .attr("font-size", 11)
+            .text(d => d.value.toLocaleString());
+        
+        // X-axis
+        hisG.append("g")
+            .attr("transform", `translate(0,${hisPlotHeight})`)
+            .call(d3.axisBottom(hisXScale).tickFormat(d3.format("~s")))
+            .append("text")
+            .attr("x", hisPlotWidth / 2)
+            .attr("y", 40)
+            .attr("fill", "black")
+            .attr("font-size", 12)
+            .text("Number of People");
+        
+        // Y-axis
+        hisG.append("g")
+            .call(d3.axisLeft(hisYScale));
+    }
+    
+    // Initial render
+    renderEnglishHistogram(true);
+    
+    // Checkbox handler
+    d3.select("#histogram-nationwide-check").on("change", function() {
+        const includeNationwide = this.checked;
+        renderEnglishHistogram(includeNationwide);
+    });
+
+    // Export key data/functions to window so other initialization blocks can access them
+    window.languageData = languageData;
+    window.states = states;
+    window.populationByState = populationByState;
+    window.canonicalStateName = canonicalStateName;
+    window.getStateName = getStateName;
+
 }).catch(err => console.error("Error loading data:", err));
+
+// ===========================
+// Per-language choropleth map
+// ===========================
+// This block runs after the main Promise above — we attach behavior by wrapping in a short timeout
+// Setup language map once required globals exist
+(function setupLang(){
+    if (typeof window.languageData === 'undefined' || typeof window.states === 'undefined') {
+        setTimeout(setupLang, 100);
+        return;
+    }
+
+    try {
+        const languageData = window.languageData;
+        const states = window.states;
+        const populationByState = window.populationByState || new Map();
+        const canonicalStateName = window.canonicalStateName;
+        const getStateName = window.getStateName;
+
+        // Build language list
+        const languageSet = new Set(languageData.map(d => d.Language).filter(Boolean));
+        const languageList = Array.from(languageSet).sort((a,b) => a.localeCompare(b));
+
+        // Populate datalist
+        const dl = d3.select('#language-list');
+        dl.selectAll('option').data(languageList).join(
+            enter => enter.append('option').attr('value', d => d),
+            update => update
+        );
+
+        // Tooltip for the language map
+        const langTooltip = d3.select('body').append('div')
+            .style('position','absolute')
+            .style('padding','8px 10px')
+            .style('background','rgba(0,0,0,0.8)')
+            .style('color','#fff')
+            .style('border-radius','4px')
+            .style('pointer-events','none')
+            .style('font-size','12px')
+            .style('opacity',0);
+
+        // render function
+        function renderLanguageMap(language) {
+            // clear container
+            d3.select('#language-map-container').selectAll('*').remove();
+
+            const container = d3.select('#language-map-container');
+            const w = 960, h = 600;
+            const svgLang = container.append('svg')
+                .attr('width', '100%')
+                .attr('viewBox', `0 0 ${w} ${h}`)
+                .attr('preserveAspectRatio', 'xMidYMid meet');
+
+            const langProj = d3.geoAlbersUsa().translate([w/2,h/2]).scale(850);
+            const langPath = d3.geoPath().projection(langProj);
+
+            // If no language provided, draw blank base map and return
+            if (!language) {
+                svgLang.selectAll('path')
+                    .data(states)
+                    .enter().append('path')
+                    .attr('d', langPath)
+                    .attr('fill', '#f0f0f0')
+                    .attr('stroke', '#ccc')
+                    .attr('stroke-width', 0.8);
+
+                svgLang.append('text')
+                    .attr('x', 20)
+                    .attr('y', 28)
+                    .attr('font-size', 14)
+                    .attr('fill', '#333')
+                    .text('No language selected');
+
+                return;
+            }
+
+            // aggregate speakers of the chosen language by state
+            const speakersByState = new Map();
+            languageData.forEach(d => {
+                if (!d.Language) return;
+                if (d.Language.toLowerCase() !== language.toLowerCase()) return;
+                const state = canonicalStateName(d.State);
+                const v = d.Speakers || 0;
+                speakersByState.set(state, (speakersByState.get(state) || 0) + v);
+            });
+
+            // compute percent by state (speakers / population *100)
+            const percentByState = new Map();
+            speakersByState.forEach((val, state) => {
+                const pop = populationByState.get(state) || null;
+                const pct = pop ? (val / pop) * 100 : null;
+                percentByState.set(state, pct);
+            });
+
+            // domain for color: use percent values (ignore nulls)
+            const percents = Array.from(percentByState.values()).filter(v => v != null && !isNaN(v));
+            const minP = percents.length ? d3.min(percents) : 0;
+            const maxP = percents.length ? d3.max(percents) : 1;
+
+            const langColor = d3.scaleLinear()
+                .domain([minP, maxP])
+                .range(['#e5f5e0','#006d2c']);
+
+            // draw states
+            svgLang.selectAll('path')
+                .data(states)
+                .enter().append('path')
+                .attr('d', langPath)
+                .attr('fill', d => {
+                    const name = canonicalStateName(getStateName(d));
+                    const pct = percentByState.get(name);
+                    return (pct != null && !isNaN(pct)) ? langColor(pct) : '#f0f0f0';
+                })
+                .attr('stroke','#999')
+                .attr('stroke-width',0.8)
+                .on('mouseenter', function(event, d) {
+                    const name = canonicalStateName(getStateName(d));
+                    const speakers = speakersByState.get(name) || 0;
+                    const pct = percentByState.get(name);
+                    const pctText = (pct == null || isNaN(pct)) ? 'N/A' : pct.toFixed(2) + '%';
+                    langTooltip.style('opacity',1)
+                        .html(`<strong>${name}</strong><br/>${speakers.toLocaleString()} speakers<br/>${pctText} of state`);
+                    d3.select(this).attr('stroke','#333').attr('stroke-width',2);
+                })
+                .on('mousemove', function(event) {
+                    langTooltip.style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 28) + 'px');
+                })
+                .on('mouseleave', function(event, d) {
+                    langTooltip.style('opacity',0);
+                    d3.select(this).attr('stroke','#999').attr('stroke-width',0.8);
+                });
+
+            // legend (inside a small box)
+            (function addLangLegend() {
+                const legendW = 180, legendH = 12;
+                const pad = 10;
+                const lx = w - legendW - 40, ly = 20;
+
+                const defs = svgLang.append('defs');
+                const lg = defs.append('linearGradient').attr('id','lang-legend-gradient');
+                lg.append('stop').attr('offset','0%').attr('stop-color', langColor(minP));
+                lg.append('stop').attr('offset','100%').attr('stop-color', langColor(maxP));
+
+                const group = svgLang.append('g').attr('transform', `translate(${lx - pad},${ly - pad})`);
+                // background box
+                group.append('rect')
+                    .attr('x', 0)
+                    .attr('y', 0)
+                    .attr('width', legendW + pad*2)
+                    .attr('height', legendH + 44)
+                    .attr('rx', 6)
+                    .attr('ry', 6)
+                    .attr('fill', '#fff')
+                    .attr('stroke', '#ddd')
+                    .attr('opacity', 0.95);
+
+                // title
+                group.append('text')
+                    .attr('x', pad)
+                    .attr('y', 16)
+                    .attr('font-size', 12)
+                    .attr('font-weight', 'bold')
+                    .text(`${language} (% of state)`);
+
+                // gradient bar
+                group.append('rect')
+                    .attr('x', pad)
+                    .attr('y', 24)
+                    .attr('width', legendW)
+                    .attr('height', legendH)
+                    .attr('fill', 'url(#lang-legend-gradient)');
+
+                const legendScale = d3.scaleLinear().domain([minP, maxP]).range([0, legendW]);
+                const legendAxis = d3.axisBottom(legendScale).ticks(4).tickFormat(d3.format('.2f'));
+                group.append('g')
+                    .attr('transform', `translate(${pad},${24 + legendH})`)
+                    .call(legendAxis)
+                    .selectAll('text').attr('font-size', 10);
+            })();
+        }
+
+        // input handling
+        const input = d3.select('#language-search');
+        input.on('change', function() {
+            const val = this.value && this.value.trim();
+            if (!val) return;
+            renderLanguageMap(val);
+        });
+
+    } catch (err) {
+        console.error('Error setting up language search map:', err);
+    }
+
+})();
