@@ -160,14 +160,22 @@ Promise.all([
     }
 
     // Setup pie chart containers and renderers
-    const pieWidth = 320;
-    const pieHeight = 320;
-    const pieRadius = Math.min(pieWidth, pieHeight) / 2 - 20;
+    const pieWidth = 380;
+    const pieHeight = 380;
+    const pieRadius = Math.min(pieWidth, pieHeight) / 2 - 18;
 
-    // helper to create an SVG group inside a target box
+    // helper to create an SVG group inside a target box and ensure a .pie-info exists
     function createPieSvg(containerSelector) {
-        d3.select(containerSelector).selectAll('svg').remove();
-        const svgEl = d3.select(containerSelector)
+        // ensure info area exists
+        const container = d3.select(containerSelector);
+        container.selectAll('.pie-info').data([0]).join(
+            enter => enter.append('div').attr('class', 'pie-info'),
+            update => update
+        );
+
+        // remove previous svg and create new
+        container.selectAll('svg').remove();
+        const svgEl = container
             .append('svg')
             .attr('viewBox', `0 0 ${pieWidth} ${pieHeight}`)
             .attr('preserveAspectRatio', 'xMidYMid meet');
@@ -205,7 +213,21 @@ Promise.all([
         const arcGen = d3.arc().innerRadius(0).outerRadius(pieRadius);
 
         const g = groupG.selectAll('.arc').data(arcs).enter().append('g').attr('class','arc');
-        g.append('path').attr('d', arcGen).attr('fill', d => d.data.lang === 'Other (<1%)' ? '#cccccc' : color(d.data.lang));
+        g.append('path')
+            .attr('d', arcGen)
+            .attr('fill', d => d.data.lang === 'Other (<1%)' ? '#cccccc' : color(d.data.lang))
+            .on('mouseover', function(event, d) {
+                // show info in container's .pie-info
+                try {
+                    const info = d3.select(containerSelector).select('.pie-info');
+                    info.text(`${d.data.lang}: ${((d.data.pct||0)*100).toFixed(2)}% (${d.data.val.toLocaleString()})`);
+                } catch (e) {
+                    // ignore
+                }
+            })
+            .on('mouseout', function() {
+                try { d3.select(containerSelector).select('.pie-info').text(''); } catch (e) {}
+            });
         g.append('title').text(d => `${d.data.lang}: ${((d.data.pct||0)*100).toFixed(2)}% (${d.data.val.toLocaleString()})`);
 
         groupG.selectAll('.label').remove();

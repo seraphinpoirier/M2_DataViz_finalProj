@@ -153,9 +153,9 @@
     }
 
     .pie-box {
-        flex: 0 0 320px;
+        flex: 0 0 360px;
         max-width: 48%;
-        height: 420px;
+        height: 480px;
         background: #fff;
         border: 1px solid #ddd;
         padding: 12px;
@@ -176,6 +176,15 @@
         width: 100%;
         height: 100%;
         display: block;
+    }
+
+    .pie-info {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #333;
+        min-height: 22px;
+        text-align: center;
+        font-family: 'Fira Sans', sans-serif;
     }
 
     #languages-container table {
