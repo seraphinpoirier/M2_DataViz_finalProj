@@ -13,7 +13,7 @@
     }
     
     body > *:not(header) {
-        max-width: 50%;
+        max-width: 90%;
         margin-left: auto;
         margin-right: auto;
     }
@@ -101,9 +101,85 @@
         justify-content: center;
     }
     
+    /* Layout: map and language list side-by-side */
+    .map-and-list {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    #map-container {
+        flex: 1 1 60%;
+        display: flex;
+        justify-content: center;
+    }
+
     #map-container svg {
-        max-width: 100%;
-        height: auto;
+        width: 100%;
+        max-width: 1000px;
+        height: 600px;
+        display: block;
+    }
+
+    #selected-state-info {
+        flex: 0 0 320px;
+        background: #ffffff;
+        border: 1px solid #ddd;
+        padding: 16px;
+        border-radius: 6px;
+        height: 600px;
+        overflow-y: auto;
+    }
+
+    /* Pie chart section */
+    #pie-section {
+        margin-top: 20px;
+    }
+
+    .pie-controls {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 8px;
+        align-items: center;
+    }
+
+    #pie-container {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        align-items: stretch;
+    }
+
+    .pie-box {
+        flex: 0 0 320px;
+        max-width: 48%;
+        height: 420px;
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .pie-box .pie-caption {
+        font-family: 'Fira Sans', sans-serif;
+        font-size: 13px;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+
+    .pie-box svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    #languages-container table {
+        width: 100%;
     }
     
     table {
@@ -132,4 +208,10 @@
     
     #selected-state-info {
         margin-top: 40px;
+    }
+
+    /* Remove extra top margin for the h3 inside the selected-state panel */
+    #selected-state-info h3 {
+        margin-top: 0;
+        padding-top: 0;
     }

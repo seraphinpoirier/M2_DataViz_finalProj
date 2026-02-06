@@ -12,66 +12,373 @@ const svg = d3.select("#map-container")
 // Create projection and path generator
 const projection = d3.geoAlbersUsa()
     .translate([width / 2, height / 2])
-    .scale(1000);
+    .scale(800);
 
 const path = d3.geoPath().projection(projection);
 
 // Load data in parallel
 Promise.all([
     d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"),
-    d3.csv("data/LanguageData_States.csv")
-]).then(([us, languageData]) => {
-    // Parse numeric fields
+    d3.csv("data/LanguageData_States.csv"),
+    d3.csv("data/us_statewise_population.csv")
+]).then(([us, languageData, popData]) => {
+    // Robustly parse speaker counts from strings to numbers
+    function parseSpeakers(raw) {
+        if (raw === undefined || raw === null) return null;
+        let s = String(raw).trim();
+        if (s === "") return null;
+
+        // Remove parenthetical notes and commas
+        s = s.replace(/\(.*?\)/g, "").replace(/,/g, "").trim();
+
+        // Handle ranges like "1000-2000" or "1 000 - 2 000"
+        const nums = s.match(/[0-9]+(?:\.[0-9]+)?/g);
+        if (!nums) return null;
+        const parsed = nums.map(n => parseFloat(n));
+
+        if (s.includes("-") && parsed.length >= 2) {
+            // average the range
+            return (parsed[0] + parsed[parsed.length - 1]) / 2;
+        }
+
+        // If text includes a "<" (less than), use the number after it
+        if (s.indexOf('<') !== -1 && parsed.length >= 1) {
+            return parsed[0];
+        }
+
+        // Default: return the first found number
+        return parsed[0];
+    }
+
     languageData.forEach(d => {
-        d.Speakers = d.Speakers ? +d.Speakers : null;
+        d.Speakers = parseSpeakers(d.Speakers);
     });
 
-    // Group language data by state
-    const languageByState = d3.group(languageData, d => d.State);
+    // population parsing moved below (after canonicalStateName is defined)
+
+    // Group language data by canonical state name (handle abbreviations and variants)
+    const abbrevToName = {
+        AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+        CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
+        HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa",
+        KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+        MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri",
+        MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+        NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio",
+        OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
+        SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont",
+        VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+        DC: "District of Columbia"
+    };
+
+    function canonicalStateName(raw) {
+        if (raw === undefined || raw === null) return "Unknown";
+        let s = String(raw).trim();
+        if (s === "") return "Unknown";
+
+        // Remove trailing/leading punctuation and extra whitespace
+        s = s.replace(/[\.]/g, "").replace(/\s+/g, " ").trim();
+
+        // If it's a two-letter code, map via abbrev
+        if (s.length === 2) {
+            const up = s.toUpperCase();
+            if (abbrevToName[up]) return abbrevToName[up];
+        }
+
+        // Normalize common variants (remove word 'State', parentheses, etc.)
+        let clean = s.replace(/\(.*?\)/g, "").replace(/\bstate\b/i, "").trim();
+
+        // Try exact case-insensitive match against known names
+        for (const name of Object.values(abbrevToName)) {
+            if (name.toLowerCase() === clean.toLowerCase()) return name;
+        }
+
+        // Title-case fallback (e.g., 'california' -> 'California')
+        const title = clean.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return title;
+    }
+
+    const languageByState = new Map();
+    languageData.forEach(d => {
+        const stateKey = canonicalStateName(d.State);
+        if (!languageByState.has(stateKey)) languageByState.set(stateKey, []);
+        languageByState.get(stateKey).push(d);
+    });
 
     // Convert TopoJSON to GeoJSON
     const states = topojson.feature(us, us.objects.states).features;
 
-    // Draw states
+    // Compute number of distinct languages per state
+    const languageCountByState = new Map();
+    languageByState.forEach((arr, state) => {
+        const unique = new Set(arr.map(d => d.Language));
+        languageCountByState.set(state, unique.size);
+    });
+
+    // Parse population data (use 2010 column and map by canonical state name)
+    const populationByState = new Map();
+    if (popData && popData.length) {
+        popData.forEach(r => {
+            // prefer 'Area' as state name and '2010' as population value
+            const rawName = r.Area || r.State || r.NAME || r.Name || r.Geography || r.GeographyName;
+            const rawPop = r['2010'] || r['2010 Population'] || r.Pop2010 || r.POP_2010 || r['2010 Population Estimate'] || r['2010_est'];
+            if (!rawName) return;
+            const name = canonicalStateName(rawName);
+            let p = null;
+            if (rawPop !== undefined) {
+                const s = String(rawPop).replace(/,/g, '').trim();
+                p = s === '' ? null : +s;
+            }
+            if (p != null && !isNaN(p)) populationByState.set(name, p);
+        });
+    }
+
+    // Compute nationwide population (sum of available state populations)
+    const nationwidePopulation = Array.from(populationByState.values()).reduce((a, b) => a + b, 0) || null;
+
+    // Helper: build language totals for nationwide or a specific state
+    function buildLanguageTotals(forState) {
+        const totals = new Map();
+        if (!forState) {
+            // nationwide: sum across all languageData
+            languageData.forEach(d => {
+                const lang = d.Language || 'Unknown';
+                const v = d.Speakers || 0;
+                totals.set(lang, (totals.get(lang) || 0) + v);
+            });
+            return { totals, population: nationwidePopulation };
+        }
+
+        const arr = languageByState.get(forState) || [];
+        arr.forEach(d => {
+            const lang = d.Language || 'Unknown';
+            const v = d.Speakers || 0;
+            totals.set(lang, (totals.get(lang) || 0) + v);
+        });
+        const population = populationByState.get(forState) || null;
+        return { totals, population };
+    }
+
+    // Setup pie chart containers and renderers
+    const pieWidth = 320;
+    const pieHeight = 320;
+    const pieRadius = Math.min(pieWidth, pieHeight) / 2 - 20;
+
+    // helper to create an SVG group inside a target box
+    function createPieSvg(containerSelector) {
+        d3.select(containerSelector).selectAll('svg').remove();
+        const svgEl = d3.select(containerSelector)
+            .append('svg')
+            .attr('viewBox', `0 0 ${pieWidth} ${pieHeight}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet');
+        const g = svgEl.append('g').attr('transform', `translate(${pieWidth/2},${pieHeight/2})`);
+        return { svgEl, g };
+    }
+
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+    function renderPieInto(groupG, containerSelector, totals, popForPct, captionText, normalizeExcluding) {
+        // totals: Map lang->value
+        let items = Array.from(totals.entries()).map(([lang, val]) => ({ lang, val }));
+        items = items.filter(d => d.val && d.val > 0);
+
+        if (normalizeExcluding && Array.isArray(normalizeExcluding)) {
+            // remove excluded languages from items and renormalize relative to remaining sum
+            items = items.filter(d => !normalizeExcluding.includes(d.lang));
+            const sumRem = items.reduce((s,d)=>s+d.val,0) || 1;
+            items.forEach(d => d.pct = d.val / sumRem);
+        } else {
+            items.forEach(d => d.pct = popForPct ? (d.val / popForPct) : 0);
+        }
+
+        // Aggregate items under 1% threshold (based on pct computed above)
+        const major = items.filter(d => d.pct >= 0.01).sort((a,b)=>b.pct-a.pct);
+        const minor = items.filter(d => d.pct < 0.01);
+        const otherVal = minor.reduce((s,d)=>s+d.val,0);
+        const otherPct = normalizeExcluding ? (otherVal / (items.reduce((s,d)=>s+d.val,0)||1)) : (otherVal / (popForPct||1));
+        if (otherVal > 0) major.push({ lang: 'Other (<1%)', val: otherVal, pct: otherPct });
+
+        const pie = d3.pie().sort(null).value(d => d.val);
+        const arcs = pie(major);
+
+        groupG.selectAll('.arc').remove();
+        const arcGen = d3.arc().innerRadius(0).outerRadius(pieRadius);
+
+        const g = groupG.selectAll('.arc').data(arcs).enter().append('g').attr('class','arc');
+        g.append('path').attr('d', arcGen).attr('fill', d => d.data.lang === 'Other (<1%)' ? '#cccccc' : color(d.data.lang));
+        g.append('title').text(d => `${d.data.lang}: ${((d.data.pct||0)*100).toFixed(2)}% (${d.data.val.toLocaleString()})`);
+
+        groupG.selectAll('.label').remove();
+        groupG.append('g').attr('class','label').selectAll('text')
+            .data(arcs)
+            .enter().append('text')
+            .attr('transform', d => `translate(${arcGen.centroid(d)})`)
+            .attr('dy', '0.35em')
+            .attr('font-size', 9)
+            .attr('text-anchor', 'middle')
+            .text(d => d.data.lang === 'Other (<1%)' ? 'Other' : d.data.lang);
+
+        // caption
+        d3.select(containerSelector).selectAll('.pie-caption').remove();
+        d3.select(containerSelector).insert('div', ':first-child')
+            .attr('class','pie-caption')
+            .text(captionText + (popForPct ? ` | Population used: ${popForPct.toLocaleString()}` : ''));
+    }
+
+    function updatePieCharts(stateName) {
+        const canonical = stateName ? canonicalStateName(stateName) : null;
+        const { totals, population } = buildLanguageTotals(canonical);
+        const popForPct = population || nationwidePopulation || Array.from(totals.values()).reduce((a,b)=>a+b,0);
+
+        // create svgs/groups if not existing
+        const left = createPieSvg('#pie-with-eng');
+        const right = createPieSvg('#pie-no-eng');
+
+        renderPieInto(left.g, '#pie-with-eng', totals, popForPct, (canonical ? `${canonical} — language shares (by 2010 population)` : 'Nationwide — language shares (by 2010 population)'), false);
+
+        // For the right chart exclude English and renormalize among remaining languages
+        renderPieInto(right.g, '#pie-no-eng', totals, popForPct, (canonical ? `${canonical} — excluding English (shares among non-English)` : 'Nationwide — excluding English (shares among non-English)'), ['English']);
+    }
+
+    // Populate the pie-state dropdown (independent from map clicks)
+    const stateSet = new Set([...populationByState.keys(), ...languageByState.keys()]);
+    stateSet.delete('Unknown');
+    const stateList = Array.from(stateSet).sort((a,b)=>a.localeCompare(b));
+
+    const select = d3.select('#pie-state-select');
+    select.selectAll('option.state-option').data(stateList).join(
+        enter => enter.append('option')
+            .classed('state-option', true)
+            .attr('value', d => d)
+            .text(d => d)
+    );
+
+    select.on('change', function() {
+        const val = this.value || null; // '' -> null means nationwide
+        updatePieCharts(val);
+    });
+
+    // Initial pie: nationwide
+    updatePieCharts(null);
+
+    const counts = Array.from(languageCountByState.values());
+    const minCount = counts.length ? d3.min(counts) : 0;
+    const maxCount = counts.length ? d3.max(counts) : 1;
+
+    const colorScale = d3.scaleLinear()
+        .domain([minCount, maxCount])
+        .range(["#deebf7", "#08306b"]);
+
+    // Draw states with color based on language counts
     svg.selectAll("path")
         .data(states)
         .join("path")
         .attr("d", path)
-        .attr("fill", "#e5e5e5")
+        .attr("fill", function(d) {
+            const name = canonicalStateName(getStateName(d));
+            const count = languageCountByState.get(name) || 0;
+            return count > 0 ? colorScale(count) : "#f0f0f0";
+        })
         .attr("stroke", "#999")
         .attr("stroke-width", 0.75)
         .style("cursor", "pointer")
         .on("mouseenter", function(event, d) {
             d3.select(this)
-                .attr("fill", "#ffcc00")
+                .attr("stroke", "#333")
                 .attr("stroke-width", 2);
         })
         .on("mouseleave", function(event, d) {
-            const stateName = getStateName(d);
+            const stateName = canonicalStateName(getStateName(d));
             const isSelected = d3.select("#selected-state").text() === stateName;
             d3.select(this)
-                .attr("fill", isSelected ? "#4da6ff" : "#e5e5e5")
+                .attr("stroke", "#999")
                 .attr("stroke-width", isSelected ? 2 : 0.75);
         })
         .on("click", function(event, d) {
-            const stateName = getStateName(d);
+            const rawName = getStateName(d);
+            const stateName = canonicalStateName(rawName);
             displayLanguages(stateName, languageByState);
 
-            // Update all states colors
+            // Highlight selected state with a stronger stroke
             svg.selectAll("path")
-                .attr("fill", function(state) {
-                    const name = getStateName(state);
-                    return name === stateName ? "#4da6ff" : "#e5e5e5";
-                })
-                .attr("stroke-width", function(state) {
-                    const name = getStateName(state);
-                    return name === stateName ? 2 : 0.75;
-                });
+                .attr("stroke", "#999")
+                .attr("stroke-width", 0.75);
+
+            d3.select(this)
+                .attr("stroke", "#000")
+                .attr("stroke-width", 2);
         });
 
+    // Add legend: title + gradient scale
+    (function addLegend() {
+        // Guard against degenerate domain
+        let legendMin = minCount;
+        let legendMax = maxCount;
+        if (legendMin === legendMax) {
+            legendMin = 0;
+            legendMax = legendMax || 1;
+        }
+
+        const legendWidth = 180;
+        const legendHeight = 12;
+        const legendX = width - legendWidth - 20;
+        const legendY = 20;
+
+        const defs = svg.append('defs');
+        const lg = defs.append('linearGradient').attr('id', 'legend-gradient');
+        lg.append('stop').attr('offset', '0%').attr('stop-color', colorScale(minCount));
+        lg.append('stop').attr('offset', '100%').attr('stop-color', colorScale(maxCount));
+
+        const legendGroup = svg.append('g')
+            .attr('class', 'legend')
+            .attr('transform', `translate(${legendX},${legendY})`);
+
+        legendGroup.append('text')
+            .attr('x', -150)
+            .attr('y', -8)
+            .attr('font-size', 12)
+            .attr('font-family', 'Fira Sans, sans-serif')
+            .text('Map representing the amount of languages spoken by state');
+
+        legendGroup.append('rect')
+            .attr('x', 0)
+            .attr('y', 0)
+            .attr('width', legendWidth)
+            .attr('height', legendHeight)
+            .attr('fill', 'url(#legend-gradient)')
+            .attr('stroke', '#ccc');
+
+        const legendScale = d3.scaleLinear()
+            .domain([legendMin, legendMax])
+            .range([0, legendWidth]);
+
+        const legendAxis = d3.axisBottom(legendScale)
+            .ticks(4)
+            .tickFormat(d3.format("~s"));
+
+        legendGroup.append('g')
+            .attr('transform', `translate(0,${legendHeight})`)
+            .call(legendAxis)
+            .selectAll('text')
+            .attr('font-size', 10)
+            .attr('font-family', 'Fira Sans, sans-serif');
+    })();
+
     function getStateName(d) {
-        // Map TopoJSON feature properties to state names
-        // The ID in the TopoJSON is numeric, so we need to match it
+        // Prefer any name property present in the GeoJSON feature
+        if (d && d.properties) {
+            if (d.properties.name) return d.properties.name;
+            if (d.properties.NAME) return d.properties.NAME;
+            if (d.properties.STATE_NAME) return d.properties.STATE_NAME;
+            // Postal abbreviation field (many TopoJSONs use STUSPS or postal codes)
+            const post = d.properties.stusps || d.properties.STUSPS || d.properties.postal || d.properties.POSTAL;
+            if (post) {
+                const mapped = abbrevToName[post.toUpperCase()];
+                if (mapped) return mapped;
+            }
+        }
+
+        // Fallback to id mapping (numeric FIPS)
         const stateIds = {
             "1": "Alabama", "2": "Alaska", "4": "Arizona", "5": "Arkansas", "6": "California",
             "8": "Colorado", "9": "Connecticut", "10": "Delaware", "12": "Florida", "13": "Georgia",
@@ -85,21 +392,26 @@ Promise.all([
             "46": "South Dakota", "47": "Tennessee", "48": "Texas", "49": "Utah", "50": "Vermont",
             "51": "Virginia", "53": "Washington", "54": "West Virginia", "55": "Wisconsin", "56": "Wyoming"
         };
-        return stateIds[d.id.toString()] || "Unknown";
+
+        if (d && d.id != null) return stateIds[d.id.toString()] || "Unknown";
+        return "Unknown";
     }
 
     function displayLanguages(stateName, languageByState) {
         const container = d3.select("#languages-container");
         container.html(""); // Clear previous content
 
-        d3.select("#selected-state").text(stateName);
+        const canonical = canonicalStateName(stateName);
 
-        const stateLanguages = languageByState.get(stateName) || [];
+            const stateLanguages = languageByState.get(canonical) || [];
+            // Count distinct languages for the selected state
+            const distinctCount = new Set(stateLanguages.map(d => d.Language)).size;
+            d3.select("#selected-state").text(`${canonical}: ${distinctCount}`);
 
         // Filter languages with speaker data and sort by speakers
         const filteredLanguages = stateLanguages
-            .filter(d => d.Speakers !== null && d.Speakers !== "")
-            .sort((a, b) => b.Speakers - a.Speakers);
+            .filter(d => d.Speakers !== null)
+            .sort((a, b) => (b.Speakers || 0) - (a.Speakers || 0));
 
         if (filteredLanguages.length === 0) {
             container.append("p")
@@ -129,7 +441,7 @@ Promise.all([
             .data(filteredLanguages)
             .join("tr")
             .selectAll("td")
-            .data(d => [d.Language, d.Speakers.toLocaleString()])
+            .data(d => [d.Language, d.Speakers !== null ? d.Speakers.toLocaleString() : 'N/A'])
             .join("td")
             .text(d => d)
             .style("padding", "8px")

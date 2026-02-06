@@ -35,11 +35,33 @@
     <h2>Languages by State</h2>
     <p>Click on a state to see what languages are spoken there.</p>
     
-    <div id="map-container"></div>
-    
-    <div id="selected-state-info">
-        <h3>Languages spoken in <span id="selected-state">Select a state</span></h3>
-        <div id="languages-container"></div>
+    <div class="map-and-list">
+        <div id="map-container"></div>
+
+        <div id="selected-state-info">
+            <h3>Languages spoken in <span id="selected-state">Select a state</span></h3>
+            <div id="languages-container"></div>
+        </div>
+    </div>
+
+    <h2>State-by-state breakdown</h2>
+    <p>Shows the share of speakers by language (2010 population). Click a state on the map to update.</p>
+    <div id="pie-section">
+        <div class="pie-controls">
+            <label for="pie-state-select">Select state:</label>
+            <select id="pie-state-select">
+                <option value="">Nationwide</option>
+            </select>
+        </div>
+
+        <div id="pie-container">
+            <div class="pie-box" id="pie-with-eng">
+                <!-- caption and svg inserted by JS -->
+            </div>
+            <div class="pie-box" id="pie-no-eng">
+                <!-- caption and svg inserted by JS -->
+            </div>
+        </div>
     </div>
     
     <script src="map-visualization.js"></script>
