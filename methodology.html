@@ -22,13 +22,32 @@
     <p>This project explores language use and English proficiency across US states using publicly available census-based datasets.</p>
 
     <h2>Data Sources</h2>
-    <p>We combine state-level language counts with 2010 population estimates to compute proportions and compare patterns across states.</p>
+    <p>
+        The data used by this website has been sources from the following Kaggle datasets:
+        <br><br>
+        <ul>
+            <li><a href="https://www.kaggle.com/datasets/amartinson193/us-languages-census-data-20092013" target="_blank" rel="noopener">US Languages Census Data (2009-2013)</a></li>
+            <li><a href="https://www.kaggle.com/datasets/quarkspark/us-statewise-population-2010-2019" target="_blank" rel="noopener">US Statewise Population (2010-2019)</a></li>
+        </ul>    
+    </p>
 
     <h2>Processing Steps</h2>
-    <p>Speaker counts are normalized by state population to compute percentages. Visualizations aggregate counts by state and language.</p>
+    <p>
+        The data was used as such. We only chose to not use data from Puerto Rico.
+        The datasets were joined on the state name to calculate proportions of speakers relative to the total population, and to filter out languages spoken in only a few states for certain visualizations.
+        <br><br>
+        All of these operations were done whithin the .js file, as the datasets were not too heavy and therefore did not need heavy operations performed on them.
+    </p>
 
-    <h2>Visualization Notes</h2>
-    <p>Charts are built with D3.js and update interactively where applicable. All maps use US state boundaries from the US Atlas TopoJSON.</p>
+    <h2>Limitations</h2>
+    <p>The biggest limitation is the age of the data, which dates back to between 2009 and 2013.
+        Obviously, changes have occured since then which will not be reflected on the website. 
+        However, considering that the website is here to provide an overview of language diversity and not to be an exact study tool
+        we believe that the conclusions drawn from it are still relevant.
+        <br><br>
+        Another limitation is that some languages do not appear in the dataset, or are grouped under the same term regardless of the "speaking reality".
+        For instance, the "Arabic" category includes all Arabic dialects, which can be very different from each other.
+    </p>
 
     <footer class="site-footer">
         <div class="footer-links">

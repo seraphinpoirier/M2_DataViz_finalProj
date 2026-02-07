@@ -98,6 +98,7 @@
     p{
         padding-left: 25%;
         padding-right: 25%;
+        
     }
     
     #map-container {
@@ -440,6 +441,45 @@
         cursor: pointer;
     }
 
+    .team-bio {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        max-width: 900px;
+        margin: 10px auto 0 auto;
+    }
+
+    .team-photo-wrap {
+        display: flex;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
+    .team-photo {
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #ddd;
+    }
+
+    .team-page h2 {
+        text-align: center;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .team-page p {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .team-bio p {
+        text-align: left;
+        margin: 0;
+        max-width: 520px;
+    }
+
 #language-map-container {
     width: 100%;
     max-width: 1200px;
@@ -449,4 +489,15 @@
     padding: 12px;
     border-radius: 6px;
     margin-bottom: 20px;
+}
+
+@media (max-width: 700px) {
+    .team-bio {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .team-bio p {
+        text-align: center;
+    }
 }

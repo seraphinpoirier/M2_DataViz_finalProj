@@ -47,7 +47,12 @@
     </div>
 
     <h2>State-by-state breakdown</h2>
-    <p>Shows the share of speakers by language (2010 population). Click a state on the map to update.</p>
+    <p>
+        On this visualisation, you can observe how the share of speakers of each language by state.For most of them, it is very clear that
+        English is the most spoken ! So the second graph shows the proportion without it. 
+        <br>
+        All languages spoken by less than 1% of the population are grouped together, for readability purposes.
+    </p>
     <div id="pie-section">
         <div class="pie-controls">
             <label for="pie-state-select">Select state:</label>
@@ -67,7 +72,12 @@
     </div>
 
     <h2>Language dispersion vs. speakers</h2>
-    <p>Each point shows a language: X = number of states where it is spoken, Y = total speakers (2010).</p>
+    <p>
+        All languages are not created equal: some are widely spoken accross all states, while others are way more localised.
+        On this graph, you can see the relation between the amount of speakers (Y axis) and the amount of states in which a language is spoken (X axis).
+        You can highlight a specific language by typing its name in the search bar, and see its position on the graph.
+        <br> Try to identify the outliers: languages widely spoken but restricted to some states, or on the contrary languages spoken in many states but by few people in each of them.
+    </p>
     <div id="dot-section">
         <div class="dot-controls">
             <label for="language-search">Search language:</label>
@@ -78,7 +88,9 @@
     </div>
     
     <h2>Top 15 languages</h2>
-    <p>Bar chart showing the 15 most-spoken languages nationwide (total speakers)</p>
+    <p>This bar chart is showing the 15 most-spoken languages nationwide (total speakers). Because English and Spanish are so far
+        ahead in the results, you can hide them to change the scale and have a better idea of the distribution.<br><br>
+    </p>
     <div class="bar-controls">
         <label><input type="checkbox" id="bar-english-check" checked /> Include English</label>
         <label><input type="checkbox" id="bar-spanish-check" checked /> Include Spanish</label>
@@ -88,24 +100,36 @@
     </div>
 
     <h2>Distribution of English Proficiency by State</h2>
-    <p>Box plot showing the distribution of the proportion of people who don't speak English very well across all states.</p>
+    <p>
+        People talking a lot of languages in the country also means that some of them do not speak English very well.
+        Of course, this can prove to be a problem when dealing with the administration, looking for a job, or even just trying to get by in daily life.
+        <br>This box plot shows the distribution of the proportion of people who don't speak English very well across all states.
+        We can see that the situation varies a lot by state, with a minimum of less than 1% and a high above 15% ! 
+    </p>
     <div id="boxplot-section">
         <div id="boxplot-container"></div>
     </div>
 
     <h2>English Proficiency by State Map</h2>
-    <p>Proportion of people who speak English less than "Very Well" compared to the total state population.</p>
+    <p>This map shows the proportion of people who speak English less than "Very Well" compared to the total state population.
+        <br> It is interesting to note that the states with the highest proportion are usually the ones where the most languages are spoken.
+    </p>
     <div id="english-proficiency-map-container"></div>
 
     <h2>Speakers of English less than "Very Well"</h2>
-    <p>Number of people who speak English less than "Very Well" by state, ordered by volume. Includes margin of error.</p>
+    <p>Here is a bar chart showing the number of people who speak English less than "Very Well" by state, ordered by volume. Includes margin of error.
+        We only show the 15 states with the highest number of speakers, for readability purpose. This means that some states might have a higher proportion than ones here, but a lower number in total.
+    </p>
     <div class="english-histogram-controls">
         <label><input type="checkbox" id="histogram-nationwide-check" checked /> Include Nationwide Total</label>
     </div>
     <div id="english-histogram-container"></div>
 
     <h2>Search a language</h2>
-    <p>Type a language name and select it to view its distribution across states.</p>
+    <p>It's almost the end ! Here, you can just type a language name and select it to view its distribution across states.
+        Start with the ones you speak, then try to find some rare ones and see where they are spoken ! 
+        <br>Be careful, however, this map only shows proportions and not absolute numbers. Some languages can have strong communities in a state and yet appear with a low proportion.<br><br>
+    </p>
     <div id="language-search-section">
         <input id="language-map-search" list="language-map-list" placeholder="Type a language (e.g. Spanish)" />
         <datalist id="language-map-list"></datalist>
