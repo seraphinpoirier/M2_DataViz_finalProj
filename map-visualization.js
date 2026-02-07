@@ -508,7 +508,11 @@ Promise.all([
     (function renderDotChart() {
         try {
             console.log('Rendering dot chart...');
-        // Compute totals per language (nationwide)
+        // Store data globally for filtering
+        let dotChartData = null;
+        
+        function drawDotChart(highlightedLang = null) {
+            // Compute totals per language (nationwide)
         const totals = new Map();
         // total speakers per language
         languageData.forEach(d => {
@@ -534,6 +538,14 @@ Promise.all([
         })).filter(d => d.total > 0 && d.states > 0 && !exclude.has(d.lang));
 
         console.log('Dot chart data points:', data.length);
+        dotChartData = data;
+        
+        // Populate datalist with language names
+        const languageList = data.map(d => d.lang).sort();
+        d3.select('#language-list').selectAll('option').data(languageList).join(
+            enter => enter.append('option').attr('value', d => d),
+            update => update
+        );
 
         // Chart size
         const w = 920, h = 360, margin = {top: 20, right: 20, bottom: 50, left: 70};
@@ -595,9 +607,11 @@ Promise.all([
             .classed('point', true)
             .attr('cx', d => x(d.states))
             .attr('cy', d => y(d.total))
-            .attr('r', 4)
-            .attr('fill', d => color(d.lang))
-            .attr('opacity', 0.9)
+            .attr('r', d => (highlightedLang && d.lang === highlightedLang) ? 8 : 4)
+            .attr('fill', d => (highlightedLang && d.lang === highlightedLang) ? '#ff0000' : color(d.lang))
+            .attr('opacity', d => (highlightedLang && d.lang !== highlightedLang) ? 0.2 : 0.9)
+            .attr('stroke', d => (highlightedLang && d.lang === highlightedLang) ? '#333' : 'none')
+            .attr('stroke-width', d => (highlightedLang && d.lang === highlightedLang) ? 2 : 0)
             .on('mouseover', function(event, d) {
                 tooltip.style('display','block').html(`<strong>${d.lang}</strong><br/>States: ${d.states}<br/>Speakers: ${d.total.toLocaleString()}`);
             })
@@ -605,6 +619,16 @@ Promise.all([
                 tooltip.style('left', (event.pageX + 10) + 'px').style('top', (event.pageY + 10) + 'px');
             })
             .on('mouseout', function() { tooltip.style('display','none'); });
+        }
+        
+        // Initial render
+        drawDotChart();
+        
+        // Add event listener for language search
+        d3.select('#language-search').on('input', function() {
+            const searchValue = this.value.trim();
+            drawDotChart(searchValue || null);
+        });
 
         } catch (err) {
             console.error('Error rendering dot chart:', err);
@@ -694,6 +718,188 @@ Promise.all([
             .text(d => d)
             .style("padding", "8px")
             .style("border-bottom", "1px solid #ddd");
+    }
+
+    // ===========================
+    // Box Plot: Proportion of People Who Don't Speak English Very Well
+    // ===========================
+    
+    try {
+        
+        // Calculate "Speak English less than Very Well" by state
+        const englishLessThanVeryWellByStateBoxplot = new Map();
+        languageData.forEach(d => {
+            const stateKey = canonicalStateName(d.State);
+            let count = d["Speak English less than \"Very Well\""] || d['Speak English less than "Very Well"'];
+            count = parseSpeakers(count);
+            if (count !== null && count > 0) {
+                const current = englishLessThanVeryWellByStateBoxplot.get(stateKey) || 0;
+                englishLessThanVeryWellByStateBoxplot.set(stateKey, current + count);
+            }
+        });
+
+
+        // Calculate proportions and collect data for box plot
+        const proportionsForBoxplot = [];
+        englishLessThanVeryWellByStateBoxplot.forEach((count, state) => {
+            const pop = populationByState.get(state);
+            if (pop && pop > 0) {
+                const proportion = (count / pop) * 100;
+                if (!isNaN(proportion) && isFinite(proportion)) {
+                    proportionsForBoxplot.push({
+                        state: state,
+                        proportion: proportion
+                    });
+                }
+            }
+        });
+
+
+        if (proportionsForBoxplot.length === 0) {
+            console.warn("No valid proportion data for box plot");
+            d3.select("#boxplot-container").append("p").text("No data available for box plot");
+        } else {
+            // Sort proportions for quartile calculation
+            const proportionValues = proportionsForBoxplot.map(d => d.proportion).sort((a, b) => a - b);
+            
+            // Calculate quartiles and statistics
+            function calculateQuartiles(data) {
+                const sorted = [...data].sort((a, b) => a - b);
+                const len = sorted.length;
+                
+                const q1Index = Math.floor(len * 0.25);
+                const medianIndex = Math.floor(len * 0.5);
+                const q3Index = Math.floor(len * 0.75);
+                
+                const q1 = sorted[q1Index];
+                const median = sorted[medianIndex];
+                const q3 = sorted[q3Index];
+                const min = sorted[0];
+                const max = sorted[len - 1];
+                const iqr = q3 - q1;
+                
+                return { min, q1, median, q3, max, iqr };
+            }
+            
+            const boxplotStats = calculateQuartiles(proportionValues);
+            
+            // D3 Box Plot (horizontal)
+            const bpWidth = 1100;
+            const bpHeight = 280;
+            const bpMargin = { top: 20, right: 260, bottom: 50, left: 60 };
+            const bpInnerWidth = bpWidth - bpMargin.left - bpMargin.right;
+            const bpInnerHeight = bpHeight - bpMargin.top - bpMargin.bottom;
+            
+            const bpSvg = d3.select("#boxplot-container")
+                .append("svg")
+                .attr("viewBox", `0 0 ${bpWidth} ${bpHeight}`)
+                .attr("preserveAspectRatio", "xMidYMid meet")
+                .attr("width", "100%")
+                .attr("height", "100%");
+            
+            const bpGroup = bpSvg.append("g")
+                .attr("transform", `translate(${bpMargin.left},${bpMargin.top})`);
+            
+            // Scale for x-axis (proportion)
+            const bpXScale = d3.scaleLinear()
+                .domain([0, boxplotStats.max * 1.1])
+                .range([0, bpInnerWidth]);
+
+            const boxY = bpInnerHeight / 2;
+            const boxHeight = 60;
+
+            // Draw whisker line (min to max)
+            bpGroup.append("line")
+                .attr("x1", bpXScale(boxplotStats.min))
+                .attr("x2", bpXScale(boxplotStats.max))
+                .attr("y1", boxY)
+                .attr("y2", boxY)
+                .attr("stroke", "#333")
+                .attr("stroke-width", 1);
+
+            // Draw whisker caps
+            bpGroup.append("line")
+                .attr("x1", bpXScale(boxplotStats.min))
+                .attr("x2", bpXScale(boxplotStats.min))
+                .attr("y1", boxY - 20)
+                .attr("y2", boxY + 20)
+                .attr("stroke", "#333")
+                .attr("stroke-width", 2);
+
+            bpGroup.append("line")
+                .attr("x1", bpXScale(boxplotStats.max))
+                .attr("x2", bpXScale(boxplotStats.max))
+                .attr("y1", boxY - 20)
+                .attr("y2", boxY + 20)
+                .attr("stroke", "#333")
+                .attr("stroke-width", 2);
+
+            // Draw box (Q1 to Q3)
+            bpGroup.append("rect")
+                .attr("x", bpXScale(boxplotStats.q1))
+                .attr("y", boxY - boxHeight / 2)
+                .attr("width", Math.max(1, bpXScale(boxplotStats.q3) - bpXScale(boxplotStats.q1)))
+                .attr("height", boxHeight)
+                .attr("fill", "#87CEEB")
+                .attr("stroke", "#333")
+                .attr("stroke-width", 2);
+
+            // Draw median line
+            bpGroup.append("line")
+                .attr("x1", bpXScale(boxplotStats.median))
+                .attr("x2", bpXScale(boxplotStats.median))
+                .attr("y1", boxY - boxHeight / 2)
+                .attr("y2", boxY + boxHeight / 2)
+                .attr("stroke", "#d62728")
+                .attr("stroke-width", 3);
+
+            // Add x-axis
+            const bpXAxis = d3.axisBottom(bpXScale).ticks(6).tickFormat(d3.format('.1f'));
+            bpGroup.append("g")
+                .attr("transform", `translate(0,${bpInnerHeight})`)
+                .call(bpXAxis);
+
+            // Add x-axis label
+            bpSvg.append("text")
+                .attr("x", bpMargin.left + (bpInnerWidth / 2))
+                .attr("y", bpHeight - 12)
+                .style("text-anchor", "middle")
+                .style("font-size", "12px")
+                .text("Proportion (%)");
+            
+            // Add statistics text
+            const statsText = [
+                `Min: ${boxplotStats.min.toFixed(2)}%`,
+                `Q1: ${boxplotStats.q1.toFixed(2)}%`,
+                `Median: ${boxplotStats.median.toFixed(2)}%`,
+                `Q3: ${boxplotStats.q3.toFixed(2)}%`,
+                `Max: ${boxplotStats.max.toFixed(2)}%`,
+                `IQR: ${boxplotStats.iqr.toFixed(2)}%`
+            ];
+            
+            const statsX = bpInnerWidth + 20;
+            const statsY = boxY - 40;
+
+            bpGroup.append("text")
+                .attr("x", statsX)
+                .attr("y", statsY)
+                .attr("font-size", "11px")
+                .attr("font-family", "monospace")
+                .text("Statistics:")
+                .style("font-weight", "bold");
+            
+            statsText.forEach((stat, index) => {
+                bpGroup.append("text")
+                    .attr("x", statsX)
+                    .attr("y", statsY + 20 + (index * 16))
+                    .attr("font-size", "11px")
+                    .attr("font-family", "monospace")
+                    .text(stat);
+            });
+        }
+    } catch (error) {
+        console.error("Error creating box plot:", error);
+        d3.select("#boxplot-container").append("p").text("Error: " + error.message);
     }
 
     // ===========================
@@ -1058,7 +1264,7 @@ Promise.all([
         const languageList = Array.from(languageSet).sort((a,b) => a.localeCompare(b));
 
         // Populate datalist
-        const dl = d3.select('#language-list');
+        const dl = d3.select('#language-map-list');
         dl.selectAll('option').data(languageList).join(
             enter => enter.append('option').attr('value', d => d),
             update => update
@@ -1216,12 +1422,14 @@ Promise.all([
         }
 
         // input handling
-        const input = d3.select('#language-search');
-        input.on('change', function() {
+        const input = d3.select('#language-map-search');
+        input.on('input', function() {
             const val = this.value && this.value.trim();
-            if (!val) return;
-            renderLanguageMap(val);
+            renderLanguageMap(val || null);
         });
+
+        // Render base map initially
+        renderLanguageMap(null);
 
     } catch (err) {
         console.error('Error setting up language search map:', err);

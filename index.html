@@ -33,7 +33,9 @@
     </p>
     
     <h2>Languages by State</h2>
-    <p>Click on a state to see what languages are spoken there.</p>
+    <p> Let's start with an overview of all languages spoken in all of the states. You can click on any state to see exactly what is spoken there, and by how many people.
+        Obviously, keep in mind that the most populated states will have more speakers of all languages, so the numbers are not directly comparable across states.
+    </p>
     
     <div class="map-and-list">
         <div id="map-container"></div>
@@ -67,6 +69,11 @@
     <h2>Language dispersion vs. speakers</h2>
     <p>Each point shows a language: X = number of states where it is spoken, Y = total speakers (2010).</p>
     <div id="dot-section">
+        <div class="dot-controls">
+            <label for="language-search">Search language:</label>
+            <input type="text" id="language-search" list="language-list" placeholder="Type language name...">
+            <datalist id="language-list"></datalist>
+        </div>
         <div id="dot-container"></div>
     </div>
     
@@ -80,7 +87,13 @@
         <div id="bar-container"></div>
     </div>
 
-    <h2>English Proficiency by State</h2>
+    <h2>Distribution of English Proficiency by State</h2>
+    <p>Box plot showing the distribution of the proportion of people who don't speak English very well across all states.</p>
+    <div id="boxplot-section">
+        <div id="boxplot-container"></div>
+    </div>
+
+    <h2>English Proficiency by State Map</h2>
     <p>Proportion of people who speak English less than "Very Well" compared to the total state population.</p>
     <div id="english-proficiency-map-container"></div>
 
@@ -90,16 +103,26 @@
         <label><input type="checkbox" id="histogram-nationwide-check" checked /> Include Nationwide Total</label>
     </div>
     <div id="english-histogram-container"></div>
+
+    <h2>Search a language</h2>
+    <p>Type a language name and select it to view its distribution across states.</p>
+    <div id="language-search-section">
+        <input id="language-map-search" list="language-map-list" placeholder="Type a language (e.g. Spanish)" />
+        <datalist id="language-map-list"></datalist>
+    </div>
+    <div id="language-map-container"></div>
+
+    <footer class="site-footer">
+        <div class="footer-links">
+            <a href="methodology.html">Methodology</a>
+            <a href="team.html">Team</a>
+        </div>
+        <div class="footer-links">
+            <a href="https://www.kaggle.com/datasets/amartinson193/us-languages-census-data-20092013" target="_blank" rel="noopener">Languages data</a>
+            <a href="https://www.kaggle.com/datasets/quarkspark/us-statewise-population-2010-2019" target="_blank" rel="noopener">Population data</a>
+        </div>
+    </footer>
     
     <script src="map-visualization.js"></script>
 </body>
 </html>
-    
-    <!-- Language search & per-language map -->
-    <h2>Search a language</h2>
-    <p>Type a language name and select it to view its distribution across states.</p>
-    <div id="language-search-section">
-        <input id="language-search" list="language-list" placeholder="Type a language (e.g. Spanish)" />
-        <datalist id="language-list"></datalist>
-    </div>
-    <div id="language-map-container"></div>
