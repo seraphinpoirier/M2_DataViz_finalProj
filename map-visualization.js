@@ -1042,6 +1042,11 @@ Promise.all([
     // ===========================
     // English Proficiency Histogram
     // ===========================
+
+    const histogramContainer = d3.select("#english-histogram-container");
+    const histogramTooltip = histogramContainer.append("div")
+        .attr("class", "histogram-tooltip")
+        .style("opacity", 0);
     
     // Aggregate "Speak English less than Very Well" by state
     const englishLessVeryWellByState = new Map();
@@ -1112,7 +1117,8 @@ Promise.all([
         // Clear previous
         d3.select("#english-histogram-container").selectAll("svg").remove();
         
-        const hisWidth = 920;
+        const extraRightSpace = 100;
+        const hisWidth = 920 + extraRightSpace;
         const hisHeight = Math.max(400, data.length * 25 + 100);
         
         const hisSvg = d3.select("#english-histogram-container")
@@ -1121,7 +1127,7 @@ Promise.all([
             .attr("height", hisHeight)
             .style("border", "1px solid #ccc");
         
-        const hisMargin = { top: 20, right: 40, bottom: 50, left: 180 };
+        const hisMargin = { top: 20, right: 40 + extraRightSpace, bottom: 50, left: 180 };
         const hisPlotWidth = hisWidth - hisMargin.left - hisMargin.right;
         const hisPlotHeight = hisHeight - hisMargin.top - hisMargin.bottom;
         
@@ -1155,10 +1161,29 @@ Promise.all([
             .style("cursor", "pointer")
             .on("mouseover", function(event, d) {
                 d3.select(this).style("opacity", 1);
+                hisG.selectAll(".bar-label")
+                    .filter(label => label.name === d.name)
+                    .style("opacity", 1);
+                histogramTooltip
+                    .style("opacity", 1)
+                    .text(`${d.name}: ${d.value.toLocaleString()}`);
+            })
+            .on("mousemove", function(event) {
+                const bounds = histogramContainer.node().getBoundingClientRect();
+                histogramTooltip
+                    .style("left", (event.clientX - bounds.left + 10) + "px")
+                    .style("top", (event.clientY - bounds.top - 28) + "px");
             })
             .on("mouseout", function() {
                 d3.select(this).style("opacity", 0.8);
+                hisG.selectAll(".bar-label").style("opacity", 0);
+                histogramTooltip.style("opacity", 0);
             });
+
+        // Native tooltip fallback
+        hisG.selectAll(".bar")
+            .append("title")
+            .text(d => `${d.name}: ${d.value.toLocaleString()}`);
         
         // Draw error bars
         hisG.selectAll(".error-bar")
@@ -1205,6 +1230,8 @@ Promise.all([
             .attr("y", d => hisYScale(d.name) + hisYScale.bandwidth() / 2)
             .attr("dy", "0.35em")
             .attr("font-size", 11)
+            .style("opacity", 0)
+            .style("pointer-events", "none")
             .text(d => d.value.toLocaleString());
         
         // X-axis

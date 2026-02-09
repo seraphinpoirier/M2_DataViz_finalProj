@@ -248,6 +248,18 @@
         z-index: 1000;
     }
 
+    .histogram-tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(0,0,0,0.8);
+        color: #fff;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: 'Fira Sans', sans-serif;
+        z-index: 1000;
+    }
+
     /* Bar chart */
     #bar-section {
         margin-top: 20px;
@@ -428,6 +440,10 @@
         align-items: center;
         gap: 20px;
         margin: 15px 0;
+    }
+
+    #english-histogram-container {
+        position: relative;
     }
 
     .english-histogram-controls label {
